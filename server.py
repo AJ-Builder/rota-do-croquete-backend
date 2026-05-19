@@ -22,7 +22,7 @@ JWT_SECRET = os.getenv("JWT_SECRET", "super_secret_change_in_production")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_DAYS = 30
 
-app = FastAPI(title="Rota do Croquete API")
+app = FastAPI(title="Rota do Croquete API", debug=True)
 
 app.add_middleware(
     CORSMiddleware,
@@ -173,6 +173,17 @@ class RatingCreate(BaseModel):
 @app.get("/api/")
 async def root():
     return {"status": "ok", "app": "Rota do Croquete"}
+
+@app.get("/api/debug")
+async def debug():
+    import sys, traceback
+    try:
+        async with aiosqlite.connect(DB_PATH) as db:
+            async with db.execute("SELECT name FROM sqlite_master WHERE type='table'") as cur:
+                tables = [r[0] for r in await cur.fetchall()]
+        return {"python": sys.version, "db_path": DB_PATH, "tables": tables, "ok": True}
+    except Exception as e:
+        return {"error": str(e), "trace": traceback.format_exc(), "python": sys.version, "db_path": DB_PATH}
 
 @app.post("/api/auth/register")
 async def register(body: RegisterBody, db=Depends(get_db)):
