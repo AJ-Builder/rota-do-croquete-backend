@@ -12,7 +12,7 @@ from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
-from passlib.context import CryptContext
+import bcrypt as _bcrypt
 from pydantic import BaseModel
 
 load_dotenv()
@@ -99,14 +99,13 @@ async def startup():
 
 # ── Auth helpers ──────────────────────────────────────────────────────────────
 
-pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2 = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 def _hash(pw: str) -> str:
-    return pwd_ctx.hash(pw)
+    return _bcrypt.hashpw(pw.encode(), _bcrypt.gensalt()).decode()
 
 def _verify(pw: str, hashed: str) -> bool:
-    return pwd_ctx.verify(pw, hashed)
+    return _bcrypt.checkpw(pw.encode(), hashed.encode())
 
 def _create_token(user_id: str) -> str:
     exp = datetime.utcnow() + timedelta(days=JWT_EXPIRE_DAYS)
