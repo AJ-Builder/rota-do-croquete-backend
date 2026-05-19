@@ -17,7 +17,7 @@ from pydantic import BaseModel
 
 load_dotenv()
 
-DB_PATH = os.getenv("DB_PATH", "rota_croquete.db")
+DB_PATH = os.getenv("DB_PATH", "/tmp/rota_croquete.db")
 JWT_SECRET = os.getenv("JWT_SECRET", "super_secret_change_in_production")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_DAYS = 30
