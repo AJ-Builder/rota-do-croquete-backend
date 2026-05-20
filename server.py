@@ -321,7 +321,7 @@ async def list_ratings(place_id: str, user=Depends(_current_user)):
     if not place:
         raise HTTPException(404, "Local não encontrado")
     await _check_access(place["event_id"], user["id"])
-    cursor = db.ratings.find({"place_id": place_id}, {"_id": 0, "photo_base64": 0})
+    cursor = db.ratings.find({"place_id": place_id}, {"_id": 0})
     return await cursor.to_list(length=100)
 
 @app.get("/api/places/{place_id}/my-rating")
