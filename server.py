@@ -330,6 +330,18 @@ async def my_rating(place_id: str, user=Depends(_current_user)):
     return rating or {}
 
 
+@app.get("/api/events/{event_id}/my-ratings")
+async def my_event_ratings(event_id: str, user=Depends(_current_user)):
+    await _check_access(event_id, user["id"])
+    places = await db.places.find({"event_id": event_id}, {"_id": 0, "id": 1}).to_list(200)
+    place_ids = [p["id"] for p in places]
+    ratings = await db.ratings.find(
+        {"place_id": {"$in": place_ids}, "user_id": user["id"]},
+        {"_id": 0, "place_id": 1, "global_score": 1}
+    ).to_list(200)
+    return {r["place_id"]: r["global_score"] for r in ratings}
+
+
 # ── Ranking ───────────────────────────────────────────────────────────────────
 
 @app.get("/api/events/{event_id}/ranking")
