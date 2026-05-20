@@ -88,6 +88,9 @@ class RegisterBody(BaseModel):
 class EventCreate(BaseModel):
     name: str
 
+class EventUpdate(BaseModel):
+    name: str
+
 class JoinEvent(BaseModel):
     code: str
 
@@ -165,6 +168,19 @@ async def create_event(body: EventCreate, user=Depends(_current_user)):
     }
     await db.events.insert_one(event)
     return {k: v for k, v in event.items() if k != "_id"}
+
+@app.patch("/api/events/{event_id}")
+async def update_event(event_id: str, body: EventUpdate, user=Depends(_current_user)):
+    event = await db.events.find_one({"id": event_id}, {"_id": 0})
+    if not event:
+        raise HTTPException(404, "Evento não encontrado")
+    if event["owner_id"] != user["id"]:
+        raise HTTPException(403, "Só o criador pode editar a rota")
+    name = body.name.strip()
+    if len(name) < 2:
+        raise HTTPException(400, "Nome muito curto")
+    await db.events.update_one({"id": event_id}, {"$set": {"name": name}})
+    return await db.events.find_one({"id": event_id}, {"_id": 0})
 
 @app.post("/api/events/join")
 async def join_event(body: JoinEvent, user=Depends(_current_user)):
