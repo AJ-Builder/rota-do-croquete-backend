@@ -118,6 +118,9 @@ class PlaceCreate(BaseModel):
 class ReorderBody(BaseModel):
     place_ids: List[str]
 
+class CoverUpdate(BaseModel):
+    cover_photo_base64: str
+
 class RatingCreate(BaseModel):
     sabor: float
     crocancia: float
@@ -195,6 +198,16 @@ async def update_event(event_id: str, body: EventUpdate, user=Depends(_current_u
         raise HTTPException(400, "Nome muito curto")
     await db.events.update_one({"id": event_id}, {"$set": {"name": name}})
     return await db.events.find_one({"id": event_id}, {"_id": 0})
+
+@app.put("/api/events/{event_id}/cover")
+async def update_cover(event_id: str, body: CoverUpdate, user=Depends(_current_user)):
+    event = await db.events.find_one({"id": event_id}, {"_id": 0})
+    if not event:
+        raise HTTPException(404, "Evento não encontrado")
+    if event["owner_id"] != user["id"]:
+        raise HTTPException(403, "Só o criador pode alterar a foto")
+    await db.events.update_one({"id": event_id}, {"$set": {"cover_photo_base64": body.cover_photo_base64}})
+    return {**{k: v for k, v in event.items() if k != "_id"}, "cover_photo_base64": body.cover_photo_base64}
 
 @app.post("/api/events/join")
 async def join_event(body: JoinEvent, user=Depends(_current_user)):
