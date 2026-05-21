@@ -361,6 +361,18 @@ async def my_rating(place_id: str, user=Depends(_current_user)):
     return rating or {}
 
 
+@app.delete("/api/places/{place_id}/ratings")
+async def delete_rating(place_id: str, user=Depends(_current_user)):
+    place = await db.places.find_one({"id": place_id}, {"_id": 0})
+    if not place:
+        raise HTTPException(404, "Local não encontrado")
+    await _check_access(place["event_id"], user["id"])
+    result = await db.ratings.delete_one({"place_id": place_id, "user_id": user["id"]})
+    if result.deleted_count == 0:
+        raise HTTPException(404, "Avaliação não encontrada")
+    return {"ok": True}
+
+
 @app.get("/api/events/{event_id}/my-ratings")
 async def my_event_ratings(event_id: str, user=Depends(_current_user)):
     await _check_access(event_id, user["id"])
