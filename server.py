@@ -65,6 +65,20 @@ def _make_invite_code() -> str:
     chars = string.ascii_uppercase + string.digits
     return "CROQ-" + "".join(random.choices(chars, k=6))
 
+async def _log_activity(event_id: str, username: str, action: str, place_name: str = "", place_id: str = ""):
+    activity = {
+        "id": str(uuid4()),
+        "username": username,
+        "action": action,
+        "place_name": place_name,
+        "place_id": place_id,
+        "created_at": datetime.utcnow().isoformat(),
+    }
+    await db.events.update_one(
+        {"id": event_id},
+        {"$push": {"activity_log": {"$each": [activity], "$slice": -50}}}
+    )
+
 async def _current_user(token: str = Depends(oauth2)):
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
@@ -188,6 +202,7 @@ async def join_event(body: JoinEvent, user=Depends(_current_user)):
     if not event:
         raise HTTPException(404, "Código inválido — rota não encontrada")
     await db.events.update_one({"id": event["id"]}, {"$addToSet": {"participants": user["id"]}})
+    await _log_activity(event["id"], user["username"], "joined")
     updated = await db.events.find_one({"id": event["id"]}, {"_id": 0})
     return updated
 
@@ -260,6 +275,7 @@ async def add_place(event_id: str, body: PlaceCreate, user=Depends(_current_user
         "created_at": datetime.utcnow().isoformat(),
     }
     await db.places.insert_one(place)
+    await _log_activity(event_id, user["username"], "added_place", place["name"], place["id"])
     return {k: v for k, v in place.items() if k != "_id"}
 
 @app.get("/api/events/{event_id}/places")
@@ -344,6 +360,7 @@ async def upsert_rating(place_id: str, body: RatingCreate, user=Depends(_current
         upsert=True,
     )
     saved = await db.ratings.find_one({"place_id": place_id, "user_id": user["id"]}, {"_id": 0})
+    await _log_activity(place["event_id"], user["username"], "rated", place["name"], place_id)
     return saved
 
 @app.get("/api/places/{place_id}/ratings")
@@ -359,6 +376,14 @@ async def list_ratings(place_id: str, user=Depends(_current_user)):
 async def my_rating(place_id: str, user=Depends(_current_user)):
     rating = await db.ratings.find_one({"place_id": place_id, "user_id": user["id"]}, {"_id": 0})
     return rating or {}
+
+
+@app.get("/api/events/{event_id}/activity")
+async def get_activity(event_id: str, user=Depends(_current_user)):
+    await _check_access(event_id, user["id"])
+    event = await db.events.find_one({"id": event_id}, {"_id": 0, "activity_log": 1})
+    activities = (event or {}).get("activity_log", [])
+    return list(reversed(activities[-20:]))
 
 
 @app.delete("/api/places/{place_id}/ratings")
