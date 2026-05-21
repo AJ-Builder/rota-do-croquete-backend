@@ -214,8 +214,23 @@ async def event_participants(event_id: str, user=Depends(_current_user)):
     for uid in event.get("participants", []):
         u = await db.users.find_one({"id": uid}, {"_id": 0, "hashed_password": 0})
         if u:
-            users.append(u)
+            users.append({**u, "is_owner": uid == event["owner_id"]})
     return users
+
+
+@app.delete("/api/events/{event_id}/participants/{user_id}")
+async def remove_participant(event_id: str, user_id: str, user=Depends(_current_user)):
+    event = await db.events.find_one({"id": event_id}, {"_id": 0})
+    if not event:
+        raise HTTPException(404, "Rota não encontrada")
+    if event["owner_id"] != user["id"]:
+        raise HTTPException(403, "Só o criador pode remover participantes")
+    if user_id == event["owner_id"]:
+        raise HTTPException(400, "Não podes remover o criador da rota")
+    if user_id not in event.get("participants", []):
+        raise HTTPException(404, "Participante não encontrado")
+    await db.events.update_one({"id": event_id}, {"$pull": {"participants": user_id}})
+    return {"ok": True}
 
 
 # ── Places ────────────────────────────────────────────────────────────────────
