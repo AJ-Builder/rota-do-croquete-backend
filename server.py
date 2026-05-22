@@ -121,6 +121,10 @@ class ReorderBody(BaseModel):
 class CoverUpdate(BaseModel):
     cover_photo_base64: str
 
+class UserUpdate(BaseModel):
+    username: Optional[str] = None
+    avatar_base64: Optional[str] = None
+
 class RatingCreate(BaseModel):
     sabor: float
     crocancia: float
@@ -167,7 +171,25 @@ async def login(form: OAuth2PasswordRequestForm = Depends()):
 
 @app.get("/api/auth/me")
 async def me(user=Depends(_current_user)):
-    return {"id": user["id"], "username": user["username"], "created_at": user["created_at"]}
+    return {"id": user["id"], "username": user["username"], "created_at": user["created_at"], "avatar_base64": user.get("avatar_base64")}
+
+@app.patch("/api/auth/me")
+async def update_me(body: UserUpdate, user=Depends(_current_user)):
+    updates: dict = {}
+    if body.username is not None:
+        name = body.username.strip()
+        if len(name) < 2:
+            raise HTTPException(400, "Username muito curto")
+        existing = await db.users.find_one({"username": name, "id": {"$ne": user["id"]}})
+        if existing:
+            raise HTTPException(409, "Username já existe")
+        updates["username"] = name
+    if body.avatar_base64 is not None:
+        updates["avatar_base64"] = body.avatar_base64
+    if updates:
+        await db.users.update_one({"id": user["id"]}, {"$set": updates})
+    updated = await db.users.find_one({"id": user["id"]}, {"_id": 0, "hashed_password": 0})
+    return {"id": updated["id"], "username": updated["username"], "created_at": updated["created_at"], "avatar_base64": updated.get("avatar_base64")}
 
 
 # ── Events ────────────────────────────────────────────────────────────────────
