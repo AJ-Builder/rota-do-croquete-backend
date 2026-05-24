@@ -115,6 +115,9 @@ class PlaceCreate(BaseModel):
     longitude: float
     order_index: Optional[int] = None
 
+class PlaceUpdate(BaseModel):
+    name: Optional[str] = None
+
 class ReorderBody(BaseModel):
     place_ids: List[str]
 
@@ -325,6 +328,22 @@ async def delete_place(event_id: str, place_id: str, user=Depends(_current_user)
     await db.places.delete_one({"id": place_id, "event_id": event_id})
     await db.ratings.delete_many({"place_id": place_id})
     return {"ok": True}
+
+@app.patch("/api/events/{event_id}/places/{place_id}")
+async def update_place(event_id: str, place_id: str, body: PlaceUpdate, user=Depends(_current_user)):
+    await _check_access(event_id, user["id"])
+    updates: dict = {}
+    if body.name is not None:
+        name = body.name.strip()
+        if len(name) < 2:
+            raise HTTPException(400, "Nome muito curto")
+        updates["name"] = name
+    if updates:
+        await db.places.update_one({"id": place_id, "event_id": event_id}, {"$set": updates})
+    place = await db.places.find_one({"id": place_id}, {"_id": 0})
+    if not place:
+        raise HTTPException(404, "Local não encontrado")
+    return place
 
 @app.post("/api/events/{event_id}/places/reorder")
 async def reorder_places(event_id: str, body: ReorderBody, user=Depends(_current_user)):
